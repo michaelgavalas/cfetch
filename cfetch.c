@@ -65,6 +65,63 @@ int main(void)
   // We are connected, we don't need 'res' anymore, so we free it
   freeaddrinfo(res);
 
+  // Format the raw HTTP request
+  char request[512];
+  int request_len = snprintf(
+      request,
+      sizeof(request),
+      "GET / HTTP/1.1\r\n"
+      "host: %s\r\n"
+      "User-Agent: RawCSocketClient/1.0\r\n"
+      "Connection: close\r\n"
+      "\r\n",
+      host);
+
+  if (request_len < 0 || (size_t)request_len >= sizeof(request))
+  {
+    fprintf(stderr, "Request string was truncated or failed to format\n");
+    close(sockfd);
+    return -1;
+  }
+
+  // Send the bytes over the network
+  ssize_t bytes_sent = send(sockfd, request, request_len, 0);
+  if (bytes_sent == -1)
+  {
+    perror("Failed to send request");
+    close(sockfd);
+    return -1;
+  }
+
+  printf("Sent %zd bytes to the server:\n\n%s\n", bytes_sent, request);
+
+  // Create a 4KB chunk buffer
+  char buffer[4096];
+  ssize_t bytes_received;
+
+  printf("--- Server Response Start ---\n");
+
+  // Loop until recv() returns 0 (connection closed) or -1 (error)
+  while ((bytes_received = recv(sockfd, buffer, sizeof(buffer) - 1, 0)) > 0)
+  {
+    // Append \0 to the end of the string
+    buffer[bytes_received] = '\0';
+
+    // Print the chunk to stdout
+    printf("%s", buffer);
+  }
+
+  printf("--- Server Response Ended ---\n");
+
+  if (bytes_received == -1)
+  {
+    perror("recv failed");
+    close(sockfd);
+    return -1;
+  }
+
+  printf("Connection closed cleanly by the server\n");
+
   // Close the socket when finished
   close(sockfd);
 

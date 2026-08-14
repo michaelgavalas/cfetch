@@ -3,7 +3,7 @@ objects = cfetch.o
 target = app
 
 all: $(objects)
-	$(CC) $^ -o $(target) -lcurl
+	$(CC) $^ -o $(target)
 
 $(objects): %.o: %.c
 	$(CC) -c $^ -o $@
