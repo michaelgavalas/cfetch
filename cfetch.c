@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 
 int main(void)
 {
@@ -103,6 +104,16 @@ int main(void)
   int headers_passed = 0;
   char *header_end = NULL;
 
+  // Open a file for writing, create it if it doesn't exist, truncate it if it does.
+  // 0644 gives Read/Write permission to owner, Read-only to everyone else.
+  int file_fd = open("output.html", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (file_fd == -1)
+  {
+    perror("Failed to open output file");
+    close(sockfd);
+    return -1;
+  }
+
   printf("--- Server Response Start ---\n");
 
   // Loop until recv() returns 0 (connection closed) or -1 (error)
@@ -133,6 +144,9 @@ int main(void)
         size_t header_bytes = (size_t)(body_start - buffer);
         size_t body_bytes = (size_t)bytes_received - header_bytes;
 
+        // Write bytes starting at body_start
+        write(file_fd, body_start, body_bytes);
+
 #ifdef DEBUG
         printf("Header bytes: %zu\nBody bytes: %zu\n", header_bytes, body_bytes);
 #endif
@@ -140,13 +154,18 @@ int main(void)
     }
     else // Pure body mode (every single byte is payload data)
     {
+      write(file_fd, buffer, bytes_received);
     }
 
+#ifdef DEBUG
     // Print the chunk to stdout
     printf("%s", buffer);
+#endif
   }
 
   printf("--- Server Response Ended ---\n");
+
+  close(file_fd);
 
   if (bytes_received == -1)
   {
