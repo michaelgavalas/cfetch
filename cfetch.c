@@ -99,6 +99,10 @@ int main(void)
   char buffer[4096];
   ssize_t bytes_received;
 
+  // Declare state variables to check whether we are past the header bytes (pure body bytes)
+  int headers_passed = 0;
+  char *header_end = NULL;
+
   printf("--- Server Response Start ---\n");
 
   // Loop until recv() returns 0 (connection closed) or -1 (error)
@@ -106,6 +110,37 @@ int main(void)
   {
     // Append \0 to the end of the string
     buffer[bytes_received] = '\0';
+
+#ifdef DEBUG
+    printf("BYTES RECEIVED: %zd\n", bytes_received);
+#endif
+
+    if (!headers_passed) // Runs before we find the end of the headers: "\r\n\r\n"
+    {
+      // Search for \r\n\r\n (headers end) in the current buffer
+      header_end = strstr(buffer, "\r\n\r\n");
+
+      if (header_end != NULL) // Means we found the end of the headers
+      {
+        // Mark headers as done
+        headers_passed = 1;
+
+        // Calculate where body starts
+        char *body_start = header_end + 4;
+
+        // Calculate how many body bytes are in this buffer
+        // (Pointer arithmetic: body_start - buffer gives us how many header bytes were skipped)
+        size_t header_bytes = (size_t)(body_start - buffer);
+        size_t body_bytes = (size_t)bytes_received - header_bytes;
+
+#ifdef DEBUG
+        printf("Header bytes: %zu\nBody bytes: %zu\n", header_bytes, body_bytes);
+#endif
+      }
+    }
+    else // Pure body mode (every single byte is payload data)
+    {
+    }
 
     // Print the chunk to stdout
     printf("%s", buffer);
