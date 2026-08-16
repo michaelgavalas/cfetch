@@ -4,6 +4,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -99,14 +101,27 @@ int main(void)
   // Create a 4KB chunk buffer
   char buffer[4096];
   ssize_t bytes_received;
+  ssize_t bytes_written = 0;
 
   // Declare state variables to check whether we are past the header bytes (pure body bytes)
   int headers_passed = 0;
   char *header_end = NULL;
 
+  // Create the 'output' folder
+  // 0755 gives rwx to owner, rx to others
+  if (mkdir("output", 0755) == -1)
+  {
+    if (errno != EEXIST)
+    {
+      perror("Failed to create 'output' folder");
+      close(sockfd);
+      return -1;
+    }
+  }
+
   // Open a file for writing, create it if it doesn't exist, truncate it if it does.
   // 0644 gives Read/Write permission to owner, Read-only to everyone else.
-  int file_fd = open("output.html", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  int file_fd = open("./output/output.html", O_WRONLY | O_CREAT | O_TRUNC, 0644);
   if (file_fd == -1)
   {
     perror("Failed to open output file");
@@ -121,8 +136,6 @@ int main(void)
   {
     // Append \0 to the end of the string
     buffer[bytes_received] = '\0';
-
-    printf("BYTES RECEIVED: %zd\n", bytes_received);
 
     if (!headers_passed) // Runs before we find the end of the headers: "\r\n\r\n"
     {
@@ -143,14 +156,18 @@ int main(void)
         size_t body_bytes = (size_t)bytes_received - header_bytes;
 
         // Write bytes starting at body_start
-        write(file_fd, body_start, body_bytes);
+        ssize_t bytes_written_chunk = write(file_fd, body_start, body_bytes);
+
+        bytes_written += bytes_written_chunk;
 
         printf("Header bytes: %zu\nBody bytes: %zu\n", header_bytes, body_bytes);
       }
     }
     else // Pure body mode (every single byte is payload data)
     {
-      write(file_fd, buffer, bytes_received);
+      ssize_t bytes_written_chunk = write(file_fd, buffer, bytes_received);
+
+      bytes_written += bytes_written_chunk;
     }
 
     // Print the chunk to stdout
@@ -166,6 +183,11 @@ int main(void)
     perror("recv failed");
     close(sockfd);
     return -1;
+  }
+
+  if (bytes_written > 0)
+  {
+    printf("Total bytes written: %zd\n", bytes_written);
   }
 
   printf("Connection closed cleanly by the server\n");

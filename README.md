@@ -9,7 +9,7 @@
 
 A tiny HTTP client written in C with nothing but POSIX sockets. No libcurl, no OpenSSL, no framework, no 400MB of node_modules. Just `getaddrinfo`, a file descriptor, and a string that ends in `\r\n\r\n`.
 
-It resolves a hostname, opens a TCP connection, writes a raw HTTP/1.1 request by hand, reads the response back in 4KB chunks, throws away the headers, and dumps the body into `output.html`.
+It resolves a hostname, opens a TCP connection, writes a raw HTTP/1.1 request by hand, reads the response back in 4KB chunks, throws away the headers, and dumps the body into `output/output.html`.
 
 That's it. That's the whole program.
 
@@ -30,7 +30,7 @@ neverssl.com  ->  getaddrinfo()  ->  socket()  ->  connect()
                                                       |
                         recv() in a loop until EOF  <-+
                                                       |
-                    split on \r\n\r\n, write body  ->  output.html
+                    split on \r\n\r\n, write body  ->  output/output.html
 ```
 
 Every step prints what it's doing, so running it feels less like a black box and more like watching a network stack do its job.
@@ -41,12 +41,12 @@ Every step prints what it's doing, so running it feels less like a black box and
 make
 ```
 
-That's the entire toolchain. gcc, a Makefile with three rules, done.
+That's the entire toolchain. One compiler, one Makefile, done.
 
-Want the noisy version? Compile with `DEBUG` defined and it will print every chunk to stdout along with the byte counts:
+The build runs with `-Wall -Wextra -Werror` and `-D_FORTIFY_SOURCE=2 -O2`, so every warning is a hard error. `CC` and `CFLAGS` are overridable if you want to swap in clang or take the training wheels off:
 
 ```bash
-gcc -DDEBUG cfetch.c -o app
+make CC=clang
 ```
 
 Clean up after yourself:
@@ -61,26 +61,7 @@ make clean
 ./app
 ```
 
-Output looks roughly like this:
-
-```
-Successfully resolved host neverssl.com
-The IP address is 34.223.124.45
-Socket descriptor created: 3
-Successfully connected to neverssl.com port 80
-Sent 108 bytes to the server:
-
-GET / HTTP/1.1
-host: neverssl.com
-User-Agent: RawCSocketClient/1.0
-Connection: close
-
---- Server Response Start ---
---- Server Response Ended ---
-Connection closed cleanly by the server
-```
-
-Then open `output.html` in a browser and enjoy the least impressive webpage ever fetched with this much effort.
+The `output/` folder is created for you if it isn't there. Open `output/output.html` in a browser afterwards and enjoy the least impressive webpage ever fetched with this much effort.
 
 ## Why neverssl.com?
 
@@ -109,11 +90,11 @@ Being honest about the sharp edges, since this is a learning project and not a l
 - **IPv4 only.** `hints.ai_family` is pinned to `AF_INET`. Setting it to `AF_UNSPEC` and walking the `addrinfo` list is the correct fix.
 - **It only tries the first address.** `getaddrinfo` hands back a linked list of candidates for a reason, and this uses exactly one of them.
 - **`strstr` on the header split is fragile.** If a response ever managed to straddle `\r\n\r\n` across two 4KB reads, the split would be missed. Unlikely with real headers, still wrong.
-- **Redirects are ignored.** A `301` is written to `output.html` as-is, which is technically the body, just not the one you wanted.
-- **Output filename is fixed.** Everything lands in `output.html`, every time.
+- **Redirects are ignored.** A `301` is written to `output/output.html` as-is, which is technically the body, just not the one you wanted.
+- **Output filename is fixed.** Everything lands in `output/output.html`, every time.
 - **Strictly single threaded and blocking.** One socket, one 4KB read at a time, and the program does nothing at all while it waits for packets. Fine for a small HTML page, painful for anything large.
 - **Nothing times out, ever.** No bound on `connect()` and no bound on `recv()`. A server that accepts the connection and then says nothing will hang this program until you get bored and hit Ctrl+C.
-- **The build has no warning flags.** The Makefile calls `gcc` with no `-Wall`, no `-Wextra`, nothing. There are almost certainly things the compiler would like a word with me about.
+- **`write()` results are added up but never inspected.** The return value feeds a running total that gets printed at the end, which keeps the compiler happy, but a `-1` on error or a short write on a full disk would sail straight through and quietly poison the count.
 - **Chunked responses would be garbage.** An HTTP/1.1 server can use `Transfer-Encoding: chunked` whenever it feels like it, without asking. This client would faithfully write the hex length prefixes into the output file and call it a day.
 
 ## Roadmap
@@ -150,7 +131,7 @@ Right now it's one socket, one thread, one 4KB `recv()` at a time, so the CPU sp
 
 ### Phase 4: turn it into a library with a CLI on top
 
-- [ ] **Split the monolith.** `url.c`, `http.c`, `tls.c`, `buffer.c` as a small `libcfetch`, with `cfetch.c` reduced to argument parsing and output. Right now the entire program lives in `main()`, which is fine for 180 lines and a disaster at 1800.
+- [ ] **Split the monolith.** `url.c`, `http.c`, `tls.c`, `buffer.c` as a small `libcfetch`, with `cfetch.c` reduced to argument parsing and output. Right now the entire program lives in `main()`, which is fine for 200 lines and a disaster at 2000.
 - [ ] **A write-callback interface**, in the spirit of curl's `CURLOPT_WRITEFUNCTION`, so callers can stream a response wherever they want instead of into a file descriptor I picked for them.
 - [ ] **Real error handling.** An error enum and a `cfetch_strerror()`, rather than returning `-1` from seven different places and hoping the message on stderr was enough.
 
@@ -161,7 +142,7 @@ This is the part that actually separates engineering from hobby code.
 - [ ] **Tests against a local server** spun up by the test harness itself. Never against `neverssl.com`. Network tests in CI are flaky, and hammering someone else's server on every push is rude.
 - [ ] **Fuzz the URL and header parsers** with libFuzzer or AFL++. For C code that parses untrusted input off the network, this is the single highest-value item on this entire page, and hardly anyone bothers at this scale.
 - [ ] **ASan, UBSan, and valgrind** wired into CI. Memory bugs in a network client are not a theoretical concern.
-- [ ] **`-Wall -Wextra -Werror`** plus `-D_FORTIFY_SOURCE=2` in the Makefile. I fully expect the first clean build to take a while.
+- [x] **`-Wall -Wextra -Werror`** plus `-D_FORTIFY_SOURCE=2` in the Makefile. Builds clean, which was less painful than expected.
 - [ ] **GitHub Actions** across gcc and clang, on Linux and macOS.
 - [x] A `LICENSE` file, so the badge at the top isn't writing checks the repo can't cash.
 - [ ] An `install` target and a man page, so it can be installed like software instead of copied like a snippet.
@@ -189,8 +170,9 @@ Today:
 
 ```
 cfetch/
-├── cfetch.c    the entire program, ~180 lines
-├── Makefile    gcc, one object file, one binary
+├── cfetch.c    the entire program, ~200 lines
+├── Makefile    one object file, one binary, warnings as errors
+├── output/     created at runtime, gitignored
 ├── LICENSE
 └── .gitignore
 ```

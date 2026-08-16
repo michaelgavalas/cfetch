@@ -1,2 +1,6 @@
-app
 *.o
+app
+build/
+
+output/*
+!output/.gitkeep
