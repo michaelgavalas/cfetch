@@ -122,9 +122,7 @@ int main(void)
     // Append \0 to the end of the string
     buffer[bytes_received] = '\0';
 
-#ifdef DEBUG
     printf("BYTES RECEIVED: %zd\n", bytes_received);
-#endif
 
     if (!headers_passed) // Runs before we find the end of the headers: "\r\n\r\n"
     {
@@ -147,9 +145,7 @@ int main(void)
         // Write bytes starting at body_start
         write(file_fd, body_start, body_bytes);
 
-#ifdef DEBUG
         printf("Header bytes: %zu\nBody bytes: %zu\n", header_bytes, body_bytes);
-#endif
       }
     }
     else // Pure body mode (every single byte is payload data)
@@ -157,10 +153,8 @@ int main(void)
       write(file_fd, buffer, bytes_received);
     }
 
-#ifdef DEBUG
     // Print the chunk to stdout
     printf("%s", buffer);
-#endif
   }
 
   printf("--- Server Response Ended ---\n");

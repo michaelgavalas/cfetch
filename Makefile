@@ -1,12 +1,21 @@
-CC = gcc
-objects = cfetch.o
-target = app
+CC ?= gcc
+CFLAGS ?= -Wall -Wextra -Werror -D_FORTIFY_SOURCE=2 -O2
+LDFLAGS ?=
+LDLIBS ?=
 
-all: $(objects)
-	$(CC) $^ -o $(target)
+TARGET = app
+SRCS = cfetch.c
+OBJS = $(SRCS:.c=.o)
 
-$(objects): %.o: %.c
-	$(CC) -c $^ -o $@
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f *.o $(target)
+	rm -f $(OBJS) $(TARGET)
