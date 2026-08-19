@@ -1,5 +1,5 @@
 *.o
-app
+cfetch
 build/
 
 output/*
