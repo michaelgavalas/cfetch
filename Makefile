@@ -3,7 +3,7 @@ CFLAGS ?= -Wall -Wextra -Werror -D_FORTIFY_SOURCE=2 -O2
 LDFLAGS ?=
 LDLIBS ?=
 
-TARGET = app
+TARGET = cfetch
 SRCS = cfetch.c
 OBJS = $(SRCS:.c=.o)
 
