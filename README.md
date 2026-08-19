@@ -131,7 +131,7 @@ Right now it's one socket, one thread, one 4KB `recv()` at a time, so the CPU sp
 
 ### Phase 4: turn it into a library with a CLI on top
 
-- [ ] **Split the monolith.** `url.c`, `http.c`, `tls.c`, `buffer.c` as a small `libcfetch`, with `src/main.c` reduced to argument parsing and output. Right now the entire program lives in `main()`, which is fine for 200 lines and a disaster at 2000.
+- [ ] **Split the monolith.** *(in progress: `include/` and the `net`/`http` function shapes exist, `main.c` has not been carved up yet.)* `url.c`, `http.c`, `tls.c`, `buffer.c` as a small `libcfetch`, with `src/main.c` reduced to argument parsing and output. Right now the entire program lives in `main()`, which is fine for 200 lines and a disaster at 2000.
 - [ ] **A write-callback interface**, in the spirit of curl's `CURLOPT_WRITEFUNCTION`, so callers can stream a response wherever they want instead of into a file descriptor I picked for them.
 - [ ] **Real error handling.** An error enum and a `cfetch_strerror()`, rather than returning `-1` from seven different places and hoping the message on stderr was enough.
 
@@ -171,13 +171,20 @@ Today:
 ```
 cfetch/
 ├── src/
-│   └── main.c    the entire program, ~200 lines
+│   ├── main.c    the program as it stands today, ~200 lines
+│   ├── net.c     DNS and connect, currently being lifted out of main.c
+│   └── http.c    request building and response reading, still a stub
+├── include/
+│   ├── net.h     net_connect()
+│   └── http.h    http_send_get(), http_receive_response()
 ├── build/        object files and depfiles, gitignored
 ├── output/       created at runtime, gitignored
 ├── Makefile      warnings as errors, objects out of the source tree
 ├── LICENSE
 └── .gitignore
 ```
+
+The split into modules is underway rather than finished. `main.c` still does all the real work; `net.c` and `http.c` are where it's headed.
 
 Where phase 4 is headed:
 
