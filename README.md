@@ -58,7 +58,7 @@ make clean
 ## Run
 
 ```bash
-./app
+./cfetch
 ```
 
 The `output/` folder is created for you if it isn't there. Open `output/output.html` in a browser afterwards and enjoy the least impressive webpage ever fetched with this much effort.
