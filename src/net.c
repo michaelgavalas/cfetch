@@ -11,6 +11,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/time.h>
 
 int net_connect(const char *host, const char *port)
 {
@@ -53,6 +54,12 @@ int net_connect(const char *host, const char *port)
     }
 
     printf("Socket descriptor created: %d\n", sockfd);
+
+    // Temporary workaround for connection with a 5 sec timeout
+    // will replace with non-blocking I/O (basically async/await in higher level languages).
+    // TODO: replace timeout with non-blocking I/O
+    struct timeval tv = {.tv_sec = 5, .tv_usec = 0};
+    setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
     if (connect(sockfd, res->ai_addr, res->ai_addrlen) == -1)
     {

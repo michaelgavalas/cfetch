@@ -93,7 +93,7 @@ Being honest about the sharp edges, since this is a learning project and not a l
 - **Redirects are ignored.** A `301` is written to `output/output.html` as-is, which is technically the body, just not the one you wanted.
 - **Output filename is fixed.** Everything lands in `output/output.html`, every time.
 - **Strictly single threaded and blocking.** One socket, one 4KB read at a time, and the program does nothing at all while it waits for packets. Fine for a small HTML page, painful for anything large.
-- **Nothing times out, ever.** No bound on `connect()` and no bound on `recv()`. A server that accepts the connection and then says nothing will hang this program until you get bored and hit Ctrl+C.
+- **Timeouts are still mostly theoretical.** There's a 5 second `SO_SNDTIMEO` on the socket, but that governs `send()`, not the blocking `connect()` it was aimed at, and nothing bounds `recv()` at all. A host that accepts your connection and then goes quiet will still sit there until you give up and hit Ctrl+C. The real fix, non-blocking `connect()` supervised by `poll()`, is phase 1 and flagged with a `TODO` in the source.
 - **`write()` results are added up but never inspected.** The return value feeds a running total that gets printed at the end, which keeps the compiler happy, but a `-1` on error or a short write on a full disk would sail straight through and quietly poison the count.
 - **Chunked responses would be garbage.** An HTTP/1.1 server can use `Transfer-Encoding: chunked` whenever it feels like it, without asking. This client would faithfully write the hex length prefixes into the output file and call it a day.
 
@@ -131,7 +131,7 @@ Right now it's one socket, one thread, one 4KB `recv()` at a time, so the CPU sp
 
 ### Phase 4: turn it into a library with a CLI on top
 
-- [ ] **Split the monolith.** *(in progress: `include/` and the `net`/`http` function shapes exist, `main.c` has not been carved up yet.)* `url.c`, `http.c`, `tls.c`, `buffer.c` as a small `libcfetch`, with `src/main.c` reduced to argument parsing and output. Right now the entire program lives in `main()`, which is fine for 200 lines and a disaster at 2000.
+- [ ] **Split the monolith.** *(in progress: `net.c` is extracted behind `net_connect()`, `http.c` is still an empty stub.)* `url.c`, `http.c`, `tls.c`, `buffer.c` as a small `libcfetch`, with `src/main.c` reduced to argument parsing and output. Right now the entire program lives in `main()`, which is fine for 200 lines and a disaster at 2000.
 - [ ] **A write-callback interface**, in the spirit of curl's `CURLOPT_WRITEFUNCTION`, so callers can stream a response wherever they want instead of into a file descriptor I picked for them.
 - [ ] **Real error handling.** An error enum and a `cfetch_strerror()`, rather than returning `-1` from seven different places and hoping the message on stderr was enough.
 
@@ -171,9 +171,9 @@ Today:
 ```
 cfetch/
 ├── src/
-│   ├── main.c    the program as it stands today, ~200 lines
-│   ├── net.c     DNS and connect, currently being lifted out of main.c
-│   └── http.c    request building and response reading, still a stub
+│   ├── main.c    request, response loop, file output, ~160 lines
+│   ├── net.c     DNS lookup and connection setup, ~90 lines
+│   └── http.c    request building and response parsing, still an empty stub
 ├── include/
 │   ├── net.h     net_connect()
 │   └── http.h    http_send_get(), http_receive_response()
@@ -184,7 +184,7 @@ cfetch/
 └── .gitignore
 ```
 
-The split into modules is underway rather than finished. `main.c` still does all the real work; `net.c` and `http.c` are where it's headed.
+The split is partway done. `net.c` now owns everything from hostname to connected socket, and hands `main()` back a file descriptor. The HTTP half is still sitting in `main()` waiting for its turn.
 
 Where phase 4 is headed:
 
