@@ -32,37 +32,49 @@ int net_connect(const char *host, const char *port)
 
   printf("Successfully resolved host %s\n", host);
 
-  char ip_string[INET_ADDRSTRLEN];
+  int sockfd = -1;
+  struct addrinfo *p;
 
-  struct sockaddr_in *ipv4 = (struct sockaddr_in *)res->ai_addr;
-
-  inet_ntop(AF_INET, &(ipv4->sin_addr), ip_string, sizeof(ip_string));
-
-  printf("The IP address is %s\n", ip_string);
-
-  // Create the socket using the blueprint from 'res'
-  int sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-  if (sockfd == -1)
+  // Loop through the addresses in the linked list and attempt to connect to each one until one succeeds
+  for (p = res; p != NULL; p = p->ai_next)
   {
-    perror("failed to create socket");
-    freeaddrinfo(res); // Clean up memory before exiting
-    return -1;
+    // Print the IP address we are attempting to connect to
+    char ip_string[INET_ADDRSTRLEN];
+    struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
+    inet_ntop(AF_INET, &(ipv4->sin_addr), ip_string, sizeof(ip_string));
+    printf("Trying IP address: %s\n", ip_string);
+
+    // Attempt to create the socket
+    int sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    if (sockfd == -1)
+    {
+      perror("failed to create socket for this IP address, trying next");
+      continue;
+    }
+
+    printf("Socket descriptor created: %d\n", sockfd);
+
+    if (connect(sockfd, res->ai_addr, res->ai_addrlen) == -1)
+    {
+      perror("failed to connect to host");
+      close(sockfd); // Close the socket to avoid leaking resources
+      sockfd = -1;   // Reset sockfd to -1 to indicate not connected
+      continue;
+    }
+
+    // If we reached here it means the connection was successful
+    printf("Successfully connected to %s (%s) on port %s\n", host, ip_string, port);
+    break;
   }
 
-  printf("Socket descriptor created: %d\n", sockfd);
-
-  if (connect(sockfd, res->ai_addr, res->ai_addrlen) == -1)
-  {
-    perror("failed to connect to host");
-    close(sockfd);     // Close the socket to avoid leaking resources
-    freeaddrinfo(res); // Free the linked list
-    return -1;
-  }
-
-  printf("Successfully connected to %s port %s\n", host, port);
-
-  // We are connected, we don't need 'res' anymore, so we free it
+  // We are finished with the address list, we don't need 'res' anymore, so we free it
   freeaddrinfo(res);
+
+  if (p == NULL)
+  {
+    fprintf(stderr, "Failed to connect to any address for %s\n", host);
+    return -1;
+  }
 
   return sockfd;
 }
