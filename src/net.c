@@ -46,7 +46,7 @@ int net_connect(const char *host, const char *port)
     printf("Trying IP address: %s\n", ip_string);
 
     // Attempt to create the socket
-    int sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
+    sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol);
     if (sockfd == -1)
     {
       perror("failed to create socket for this IP address, trying next");
