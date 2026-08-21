@@ -61,7 +61,7 @@ int net_connect(const char *host, const char *port)
     struct timeval tv = {.tv_sec = 5, .tv_usec = 0};
     setsockopt(sockfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 
-    if (connect(sockfd, res->ai_addr, res->ai_addrlen) == -1)
+    if (connect(sockfd, p->ai_addr, p->ai_addrlen) == -1)
     {
       perror("failed to connect to host");
       close(sockfd); // Close the socket to avoid leaking resources
